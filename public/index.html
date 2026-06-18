@@ -286,6 +286,14 @@
           <div class="result-label">上传耗时</div>
           <div class="result-value" id="resultTime"></div>
         </div>
+        <div class="result-item">
+          <div class="result-label">服务端内存(RSS)</div>
+          <div class="result-value" id="resultMemRss"></div>
+        </div>
+        <div class="result-item">
+          <div class="result-label">服务端内存(Heap)</div>
+          <div class="result-value" id="resultMemHeap"></div>
+        </div>
       </div>
     </div>
 
@@ -315,6 +323,8 @@
     const resultSize = document.getElementById('resultSize');
     const resultSpeed = document.getElementById('resultSpeed');
     const resultTime = document.getElementById('resultTime');
+    const resultMemRss = document.getElementById('resultMemRss');
+    const resultMemHeap = document.getElementById('resultMemHeap');
     const historyList = document.getElementById('historyList');
 
     let selectedFile = null;
@@ -431,6 +441,8 @@
             resultSize.textContent = response.fileSizeFormatted;
             resultSpeed.textContent = response.avgSpeedFormatted;
             resultTime.textContent = response.durationSec + ' 秒';
+            resultMemRss.textContent = response.memoryUsage ? response.memoryUsage.rss : '-';
+            resultMemHeap.textContent = response.memoryUsage ? response.memoryUsage.heapUsed : '-';
             result.classList.add('active');
 
             uploadHistory.unshift({
@@ -450,6 +462,8 @@
           resultSize.textContent = formatSize(selectedFile.size);
           resultSpeed.textContent = '-';
           resultTime.textContent = err.message;
+          resultMemRss.textContent = '-';
+          resultMemHeap.textContent = '-';
           result.classList.add('active');
         }
       });
@@ -463,6 +477,8 @@
         resultSize.textContent = formatSize(selectedFile.size);
         resultSpeed.textContent = '-';
         resultTime.textContent = '请检查网络连接';
+        resultMemRss.textContent = '-';
+        resultMemHeap.textContent = '-';
         result.classList.add('active');
       });
 

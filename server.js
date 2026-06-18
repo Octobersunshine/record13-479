@@ -11,6 +11,8 @@ if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
 
+const MAX_FILE_SIZE = 50 * 1024 * 1024 * 1024;
+
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, uploadDir);
@@ -21,7 +23,12 @@ const storage = multer.diskStorage({
   }
 });
 
-const upload = multer({ storage });
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: MAX_FILE_SIZE
+  }
+});
 
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
@@ -50,19 +57,33 @@ function formatSize(bytes) {
 
 app.post('/upload', (req, res) => {
   const startTime = Date.now();
-  let bytesReceived = 0;
   const totalSize = parseInt(req.headers['content-length'], 10);
 
-  req.on('data', (chunk) => {
-    bytesReceived += chunk.length;
-  });
+  if (totalSize && totalSize > MAX_FILE_SIZE) {
+    return res.status(413).json({
+      success: false,
+      message: `文件过大，最大允许 ${formatSize(MAX_FILE_SIZE)}`
+    });
+  }
+
+  let memLogInterval = setInterval(() => {
+    const mem = process.memoryUsage();
+    console.log(`[内存监控] RSS: ${formatSize(mem.rss)} | Heap: ${formatSize(mem.heapUsed)}/${formatSize(mem.heapTotal)}`);
+  }, 2000);
 
   upload.single('file')(req, res, (err) => {
+    clearInterval(memLogInterval);
     const endTime = Date.now();
     const durationMs = endTime - startTime;
     const durationSec = durationMs / 1000;
 
     if (err) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(413).json({
+          success: false,
+          message: `文件超过大小限制 ${formatSize(MAX_FILE_SIZE)}`
+        });
+      }
       return res.status(500).json({
         success: false,
         message: '上传失败: ' + err.message
@@ -79,6 +100,7 @@ app.post('/upload', (req, res) => {
     const fileSize = req.file.size;
     const avgSpeed = durationSec > 0 ? fileSize / durationSec : 0;
 
+    const mem = process.memoryUsage();
     const result = {
       success: true,
       filename: req.file.originalname,
@@ -91,10 +113,14 @@ app.post('/upload', (req, res) => {
       avgSpeed: avgSpeed,
       avgSpeedFormatted: formatSpeed(avgSpeed),
       mimeType: req.file.mimetype,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      memoryUsage: {
+        rss: formatSize(mem.rss),
+        heapUsed: formatSize(mem.heapUsed)
+      }
     };
 
-    console.log(`[上传完成] ${result.filename} | ${result.fileSizeFormatted} | ${result.avgSpeedFormatted} | ${result.durationSec}s`);
+    console.log(`[上传完成] ${result.filename} | ${result.fileSizeFormatted} | ${result.avgSpeedFormatted} | ${result.durationSec}s | 内存: ${result.memoryUsage.rss}`);
 
     res.json(result);
   });
@@ -140,5 +166,7 @@ app.listen(PORT, () => {
   console.log(`  文件上传速度测试服务已启动`);
   console.log(`  访问地址: http://localhost:${PORT}`);
   console.log(`  上传接口: POST http://localhost:${PORT}/upload`);
+  console.log(`  最大文件: ${formatSize(MAX_FILE_SIZE)}`);
+  console.log(`  存储模式: 流式写入磁盘 (multer diskStorage)`);
   console.log(`========================================\n`);
 });
