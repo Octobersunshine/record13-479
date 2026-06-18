@@ -3,6 +3,8 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
+const { Readable } = require('stream');
+
 const app = express();
 const PORT = 3000;
 
@@ -126,6 +128,67 @@ app.post('/upload', (req, res) => {
   });
 });
 
+const DOWNLOAD_SIZES = {
+  '1mb': 1 * 1024 * 1024,
+  '10mb': 10 * 1024 * 1024,
+  '50mb': 50 * 1024 * 1024,
+  '100mb': 100 * 1024 * 1024,
+  '200mb': 200 * 1024 * 1024,
+  '500mb': 500 * 1024 * 1024,
+  '1gb': 1024 * 1024 * 1024
+};
+
+app.get('/download', (req, res) => {
+  const sizeKey = (req.query.size || '10mb').toLowerCase();
+  const totalBytes = DOWNLOAD_SIZES[sizeKey];
+
+  if (!totalBytes) {
+    return res.status(400).json({
+      success: false,
+      message: `无效的大小参数，支持: ${Object.keys(DOWNLOAD_SIZES).join(', ')}`
+    });
+  }
+
+  res.setHeader('Content-Type', 'application/octet-stream');
+  res.setHeader('Content-Length', totalBytes);
+  res.setHeader('Content-Disposition', `attachment; filename="test_${sizeKey}.bin"`);
+  res.setHeader('X-Download-Size', totalBytes);
+  res.setHeader('Cache-Control', 'no-store, no-cache');
+
+  const CHUNK_SIZE = 64 * 1024;
+  const chunk = Buffer.alloc(CHUNK_SIZE);
+  let bytesSent = 0;
+  const startTime = Date.now();
+
+  const stream = new Readable({
+    read() {
+      if (bytesSent >= totalBytes) {
+        const durationSec = (Date.now() - startTime) / 1000;
+        const avgSpeed = durationSec > 0 ? totalBytes / durationSec : 0;
+        console.log(`[下载完成] ${sizeKey} | ${formatSize(totalBytes)} | ${formatSpeed(avgSpeed)} | ${durationSec.toFixed(3)}s | 内存: ${formatSize(process.memoryUsage().rss)}`);
+        this.push(null);
+        return;
+      }
+
+      const remaining = totalBytes - bytesSent;
+      const toSend = Math.min(CHUNK_SIZE, remaining);
+      bytesSent += toSend;
+      this.push(toSend === CHUNK_SIZE ? chunk : chunk.subarray(0, toSend));
+    }
+  });
+
+  stream.pipe(res);
+});
+
+app.get('/download/sizes', (req, res) => {
+  const sizes = Object.entries(DOWNLOAD_SIZES).map(([key, bytes]) => ({
+    key,
+    bytes,
+    label: formatSize(bytes)
+  }));
+  res.json({ success: true, sizes });
+});
+
 app.get('/uploads', (req, res) => {
   fs.readdir(uploadDir, (err, files) => {
     if (err) {
@@ -163,9 +226,10 @@ app.delete('/uploads/:filename', (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`\n========================================`);
-  console.log(`  文件上传速度测试服务已启动`);
+  console.log(`  网络速率测试服务已启动`);
   console.log(`  访问地址: http://localhost:${PORT}`);
   console.log(`  上传接口: POST http://localhost:${PORT}/upload`);
+  console.log(`  下载接口: GET  http://localhost:${PORT}/download?size=10mb`);
   console.log(`  最大文件: ${formatSize(MAX_FILE_SIZE)}`);
   console.log(`  存储模式: 流式写入磁盘 (multer diskStorage)`);
   console.log(`========================================\n`);
