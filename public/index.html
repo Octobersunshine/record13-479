@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>文件上传速度测试</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .container {
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      padding: 40px;
+      max-width: 600px;
+      width: 100%;
+    }
+    h1 {
+      color: #333;
+      margin-bottom: 8px;
+      font-size: 28px;
+      text-align: center;
+    }
+    .subtitle {
+      color: #888;
+      text-align: center;
+      margin-bottom: 32px;
+      font-size: 14px;
+    }
+    .drop-zone {
+      border: 3px dashed #cbd5e0;
+      border-radius: 12px;
+      padding: 48px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      background: #f8fafc;
+    }
+    .drop-zone:hover,
+    .drop-zone.dragover {
+      border-color: #667eea;
+      background: #edf2ff;
+    }
+    .drop-zone-icon {
+      font-size: 48px;
+      margin-bottom: 16px;
+    }
+    .drop-zone-text {
+      color: #4a5568;
+      font-size: 16px;
+      margin-bottom: 8px;
+    }
+    .drop-zone-hint {
+      color: #a0aec0;
+      font-size: 13px;
+    }
+    #fileInput {
+      display: none;
+    }
+    .file-info {
+      margin-top: 20px;
+      padding: 16px;
+      background: #f0f4ff;
+      border-radius: 8px;
+      display: none;
+    }
+    .file-info.active {
+      display: block;
+    }
+    .file-name {
+      font-weight: 600;
+      color: #2d3748;
+      margin-bottom: 4px;
+      word-break: break-all;
+    }
+    .file-size {
+      color: #718096;
+      font-size: 14px;
+    }
+    .upload-btn {
+      width: 100%;
+      margin-top: 20px;
+      padding: 14px 24px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      opacity: 0.5;
+      pointer-events: none;
+    }
+    .upload-btn.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .upload-btn:hover.active {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+    }
+    .upload-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+    .progress-container {
+      margin-top: 24px;
+      display: none;
+    }
+    .progress-container.active {
+      display: block;
+    }
+    .progress-bar {
+      width: 100%;
+      height: 12px;
+      background: #e2e8f0;
+      border-radius: 6px;
+      overflow: hidden;
+      margin-bottom: 12px;
+    }
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+      border-radius: 6px;
+      transition: width 0.2s ease;
+      width: 0%;
+    }
+    .progress-stats {
+      display: flex;
+      justify-content: space-between;
+      color: #718096;
+      font-size: 13px;
+    }
+    .result {
+      margin-top: 24px;
+      padding: 24px;
+      background: #f0fff4;
+      border-radius: 8px;
+      border-left: 4px solid #48bb78;
+      display: none;
+    }
+    .result.active {
+      display: block;
+    }
+    .result.error {
+      background: #fff5f5;
+      border-left-color: #f56565;
+    }
+    .result-title {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      color: #2d3748;
+    }
+    .result-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .result-item {
+      padding: 12px;
+      background: #fff;
+      border-radius: 6px;
+    }
+    .result-label {
+      font-size: 12px;
+      color: #a0aec0;
+      margin-bottom: 4px;
+    }
+    .result-value {
+      font-size: 16px;
+      font-weight: 600;
+      color: #2d3748;
+    }
+    .result-value.highlight {
+      color: #667eea;
+      font-size: 20px;
+    }
+    .history {
+      margin-top: 32px;
+    }
+    .history-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: #4a5568;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid #e2e8f0;
+    }
+    .history-list {
+      list-style: none;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    .history-item {
+      padding: 10px 12px;
+      background: #f7fafc;
+      border-radius: 6px;
+      margin-bottom: 6px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+    }
+    .history-file {
+      color: #4a5568;
+      font-weight: 500;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex: 1;
+      margin-right: 12px;
+    }
+    .history-speed {
+      color: #667eea;
+      font-weight: 600;
+    }
+    .history-empty {
+      color: #a0aec0;
+      text-align: center;
+      padding: 16px;
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>📤 文件上传速度测试</h1>
+    <p class="subtitle">上传文件以测试平均传输速度</p>
+
+    <div class="drop-zone" id="dropZone">
+      <div class="drop-zone-icon">📁</div>
+      <div class="drop-zone-text">点击或拖拽文件到此处</div>
+      <div class="drop-zone-hint">支持任意格式和大小的文件</div>
+    </div>
+    <input type="file" id="fileInput">
+
+    <div class="file-info" id="fileInfo">
+      <div class="file-name" id="fileName"></div>
+      <div class="file-size" id="fileSize"></div>
+    </div>
+
+    <button class="upload-btn" id="uploadBtn" disabled>开始上传</button>
+
+    <div class="progress-container" id="progressContainer">
+      <div class="progress-bar">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+      <div class="progress-stats">
+        <span id="progressPercent">0%</span>
+        <span id="progressSpeed">0 KB/s</span>
+        <span id="progressTime">0.0s</span>
+      </div>
+    </div>
+
+    <div class="result" id="result">
+      <div class="result-title" id="resultTitle">✅ 上传完成</div>
+      <div class="result-grid">
+        <div class="result-item">
+          <div class="result-label">文件名</div>
+          <div class="result-value" id="resultFilename"></div>
+        </div>
+        <div class="result-item">
+          <div class="result-label">文件大小</div>
+          <div class="result-value" id="resultSize"></div>
+        </div>
+        <div class="result-item">
+          <div class="result-label">平均传输速度</div>
+          <div class="result-value highlight" id="resultSpeed"></div>
+        </div>
+        <div class="result-item">
+          <div class="result-label">上传耗时</div>
+          <div class="result-value" id="resultTime"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="history">
+      <div class="history-title">📋 上传历史</div>
+      <ul class="history-list" id="historyList">
+        <li class="history-empty">暂无上传记录</li>
+      </ul>
+    </div>
+  </div>
+
+  <script>
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const fileInfo = document.getElementById('fileInfo');
+    const fileName = document.getElementById('fileName');
+    const fileSize = document.getElementById('fileSize');
+    const uploadBtn = document.getElementById('uploadBtn');
+    const progressContainer = document.getElementById('progressContainer');
+    const progressFill = document.getElementById('progressFill');
+    const progressPercent = document.getElementById('progressPercent');
+    const progressSpeed = document.getElementById('progressSpeed');
+    const progressTime = document.getElementById('progressTime');
+    const result = document.getElementById('result');
+    const resultTitle = document.getElementById('resultTitle');
+    const resultFilename = document.getElementById('resultFilename');
+    const resultSize = document.getElementById('resultSize');
+    const resultSpeed = document.getElementById('resultSpeed');
+    const resultTime = document.getElementById('resultTime');
+    const historyList = document.getElementById('historyList');
+
+    let selectedFile = null;
+    let uploadHistory = [];
+
+    function formatSize(bytes) {
+      if (bytes >= 1024 * 1024 * 1024) {
+        return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+      } else if (bytes >= 1024 * 1024) {
+        return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+      } else if (bytes >= 1024) {
+        return (bytes / 1024).toFixed(2) + ' KB';
+      } else {
+        return bytes + ' B';
+      }
+    }
+
+    function formatSpeed(bytesPerSecond) {
+      if (bytesPerSecond >= 1024 * 1024) {
+        return (bytesPerSecond / (1024 * 1024)).toFixed(2) + ' MB/s';
+      } else if (bytesPerSecond >= 1024) {
+        return (bytesPerSecond / 1024).toFixed(2) + ' KB/s';
+      } else {
+        return bytesPerSecond.toFixed(2) + ' B/s';
+      }
+    }
+
+    function handleFileSelect(file) {
+      selectedFile = file;
+      fileName.textContent = file.name;
+      fileSize.textContent = formatSize(file.size);
+      fileInfo.classList.add('active');
+      uploadBtn.classList.add('active');
+      uploadBtn.disabled = false;
+      result.classList.remove('active', 'error');
+      progressContainer.classList.remove('active');
+    }
+
+    dropZone.addEventListener('click', () => fileInput.click());
+
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('dragover');
+    });
+
+    dropZone.addEventListener('dragleave', () => {
+      dropZone.classList.remove('dragover');
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      if (e.dataTransfer.files.length > 0) {
+        handleFileSelect(e.dataTransfer.files[0]);
+      }
+    });
+
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files.length > 0) {
+        handleFileSelect(e.target.files[0]);
+      }
+    });
+
+    function updateHistory() {
+      if (uploadHistory.length === 0) {
+        historyList.innerHTML = '<li class="history-empty">暂无上传记录</li>';
+        return;
+      }
+      historyList.innerHTML = uploadHistory.map((item) => `
+        <li class="history-item">
+          <span class="history-file">${item.filename}</span>
+          <span class="history-speed">${item.speed}</span>
+        </li>
+      `).join('');
+    }
+
+    uploadBtn.addEventListener('click', () => {
+      if (!selectedFile) return;
+
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+
+      const xhr = new XMLHttpRequest();
+      const startTime = Date.now();
+
+      uploadBtn.disabled = true;
+      uploadBtn.textContent = '上传中...';
+      progressContainer.classList.add('active');
+      result.classList.remove('active', 'error');
+
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable) {
+          const elapsed = (Date.now() - startTime) / 1000;
+          const percent = Math.round((e.loaded / e.total) * 100);
+          const currentSpeed = elapsed > 0 ? e.loaded / elapsed : 0;
+
+          progressFill.style.width = percent + '%';
+          progressPercent.textContent = percent + '%';
+          progressSpeed.textContent = formatSpeed(currentSpeed);
+          progressTime.textContent = elapsed.toFixed(1) + 's';
+        }
+      });
+
+      xhr.addEventListener('load', () => {
+        uploadBtn.disabled = false;
+        uploadBtn.textContent = '开始上传';
+
+        try {
+          const response = JSON.parse(xhr.responseText);
+          if (response.success) {
+            resultTitle.textContent = '✅ 上传完成';
+            result.classList.remove('error');
+            resultFilename.textContent = response.filename;
+            resultSize.textContent = response.fileSizeFormatted;
+            resultSpeed.textContent = response.avgSpeedFormatted;
+            resultTime.textContent = response.durationSec + ' 秒';
+            result.classList.add('active');
+
+            uploadHistory.unshift({
+              filename: response.filename,
+              speed: response.avgSpeedFormatted,
+              size: response.fileSizeFormatted
+            });
+            if (uploadHistory.length > 10) uploadHistory.pop();
+            updateHistory();
+          } else {
+            throw new Error(response.message || '上传失败');
+          }
+        } catch (err) {
+          resultTitle.textContent = '❌ 上传失败';
+          result.classList.add('error');
+          resultFilename.textContent = selectedFile.name;
+          resultSize.textContent = formatSize(selectedFile.size);
+          resultSpeed.textContent = '-';
+          resultTime.textContent = err.message;
+          result.classList.add('active');
+        }
+      });
+
+      xhr.addEventListener('error', () => {
+        uploadBtn.disabled = false;
+        uploadBtn.textContent = '开始上传';
+        resultTitle.textContent = '❌ 网络错误';
+        result.classList.add('error');
+        resultFilename.textContent = selectedFile.name;
+        resultSize.textContent = formatSize(selectedFile.size);
+        resultSpeed.textContent = '-';
+        resultTime.textContent = '请检查网络连接';
+        result.classList.add('active');
+      });
+
+      xhr.open('POST', '/upload');
+      xhr.send(formData);
+    });
+  </script>
+</body>
+</html>
